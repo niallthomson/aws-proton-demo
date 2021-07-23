@@ -25,6 +25,12 @@ schema:
           description: "The size of the task you want to run"
           enum: ["x-small", "small", "medium", "large", "x-large"]
           default: "x-small"
+        image:
+          type: string
+          description: "The name/url of the container image"
+          default: "public.ecr.aws/t0t9x2q2/nthomson:placeholder-latest"
+          minLength: 1
+          maxLength: 200
 
     PipelineInputs:
       type: object
