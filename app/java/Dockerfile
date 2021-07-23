@@ -65,4 +65,4 @@ RUN ./mvnw -DskipTests package
 
 EXPOSE 8080
 
-CMD exec java $JAVA_OPTS -jar /app/target/app.jar
+CMD ["exec", "java", "$JAVA_OPTS", "-jar", "/app/target/app.jar"]
