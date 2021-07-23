@@ -61,7 +61,7 @@ RUN ./mvnw dependency:go-offline -B
 
 COPY ./src ./src
 
-RUN ./mvnw -DskipTests package
+RUN ./mvnw -DskipTests --batch-mode --no-transfer-progress package
 
 EXPOSE 8080
 
