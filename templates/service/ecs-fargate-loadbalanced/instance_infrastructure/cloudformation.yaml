@@ -42,6 +42,9 @@ Resources:
           Cpu: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, cpu]
           Memory: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, memory]
           Image: '{{service_instance.inputs.image}}'
+          Environment:
+          - Name: PORT
+            Value: '{{service_instance.inputs.port}}'
           PortMappings:
             - ContainerPort: '{{service_instance.inputs.port}}'
           LogConfiguration:
@@ -58,7 +61,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn: LoadBalancerRule
     Properties:
-      ServiceName: '{{service.name}}-{{service_instance.name}}-service'
+      ServiceName: '{{service.name}}-{{service_instance.name}}'
       Cluster: '{{environment.outputs.ClusterName}}'
       LaunchType: FARGATE
       DeploymentConfiguration:
@@ -129,7 +132,7 @@ Resources:
           - '/'
           - - service
             - '{{environment.outputs.ClusterName}}'
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       MinCapacity: 1
       MaxCapacity: 10
       RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
@@ -143,7 +146,7 @@ Resources:
         Fn::Join:
           - '/'
           - - scale
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
             - down
       PolicyType: StepScaling
       ResourceId:
@@ -151,7 +154,7 @@ Resources:
           - '/'
           - - service
             - '{{environment.outputs.ClusterName}}'
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       ScalableDimension: 'ecs:service:DesiredCount'
       ServiceNamespace: 'ecs'
       StepScalingPolicyConfiguration:
@@ -170,7 +173,7 @@ Resources:
         Fn::Join:
           - '/'
           - - scale
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
             - up
       PolicyType: StepScaling
       ResourceId:
@@ -178,7 +181,7 @@ Resources:
           - '/'
           - - service
             - '{{environment.outputs.ClusterName}}'
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       ScalableDimension: 'ecs:service:DesiredCount'
       ServiceNamespace: 'ecs'
       StepScalingPolicyConfiguration:
@@ -203,17 +206,17 @@ Resources:
         Fn::Join:
           - '-'
           - - low-cpu
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       AlarmDescription:
         Fn::Join:
           - ' '
           - - "Low CPU utilization for service"
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       MetricName: CPUUtilization
       Namespace: AWS/ECS
       Dimensions:
         - Name: ServiceName
-          Value: '{{service.name}}_{{service_instance.name}}'
+          Value: '{{service.name}}-{{service_instance.name}}'
         - Name: ClusterName
           Value:
             '{{environment.outputs.ClusterName}}'
@@ -232,17 +235,17 @@ Resources:
         Fn::Join:
           - '-'
           - - high-cpu
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       AlarmDescription:
         Fn::Join:
           - ' '
           - - "High CPU utilization for service"
-            - '{{service.name}}_{{service_instance.name}}'
+            - '{{service.name}}-{{service_instance.name}}'
       MetricName: CPUUtilization
       Namespace: AWS/ECS
       Dimensions:
         - Name: ServiceName
-          Value: '{{service.name}}_{{service_instance.name}}'
+          Value: '{{service.name}}-{{service_instance.name}}'
         - Name: ClusterName
           Value:
             '{{environment.outputs.ClusterName}}'
