@@ -25,7 +25,6 @@ Resources:
   BuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: '{{service.name}}-{{service_instance.name}}-build'
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -40,74 +39,121 @@ Resources:
         - Name: service_name
           Type: PLAINTEXT
           Value: '{{service.name}}'
-      ServiceRole:
-        Fn::GetAtt:
-          - PublishRole
-          - Arn
+      ServiceRole: !GetAtt PublishRole.Arn
       Source:
-        BuildSpec:
-          Fn::Join:
-            - ""
-            - - >-
-                {
-                  "version": "0.2",
-                  "phases": {
-                    "install": {
-                      "runtime-versions": {
-                        "docker": 18
-                      },
-                      "commands": [
-                        "pip3 install --upgrade --user awscli",
-                        "echo 'f6bd1536a743ab170b35c94ed4c7c4479763356bd543af5d391122f4af852460  yq_linux_amd64' > yq_linux_amd64.sha",
-                        "wget https://github.com/mikefarah/yq/releases/download/3.4.0/yq_linux_amd64",
-                        "sha256sum -c yq_linux_amd64.sha",
-                        "mv yq_linux_amd64 /usr/bin/yq",
-                        "chmod +x /usr/bin/yq"
-                      ]
-                    },
-                    "pre_build": {
-                      "commands": [
-                        "cd $CODEBUILD_SRC_DIR",
-                        "$(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)",
-                        "{{ pipeline.inputs.unit_test_command }}",
-                      ]
-                    },
-                    "build": {
-                      "commands": [
-                        "IMAGE_REPO_NAME=$repo_name",
-                        "IMAGE_TAG=$CODEBUILD_BUILD_NUMBER",
-                        "IMAGE_ID=
-              - Ref: AWS::AccountId
-              - >-
-                .dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG",
-                        "docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG {{ pipeline.inputs.app_directory }}",
-                        "docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $IMAGE_ID;",
-                        "docker push $IMAGE_ID"
-                      ]
-                    },
-                    "post_build": {
-                      "commands": [
-                        "aws proton --region $AWS_DEFAULT_REGION get-service --name $service_name | jq -r .service.spec > service.yaml",
-                        "yq w service.yaml 'instances[*].spec.image' \"$IMAGE_ID\" > rendered_service.yaml"
-                      ]
-                    }
-                  },
-                  "artifacts": {
-                    "files": [
-                      "rendered_service.yaml"
-                    ]
-                  }
-                }
+        BuildSpec: !Sub |
+          ---
+          version: '0.2'
+          env:
+            exported-variables:
+            - IMAGE_TAG
+            - IMAGE_ID
+          phases:
+            install:
+              runtime-versions:
+                docker: 18
+              commands:
+              - pip3 install --upgrade --user awscli
+              - echo 'f6bd1536a743ab170b35c94ed4c7c4479763356bd543af5d391122f4af852460  yq_linux_amd64' > yq_linux_amd64.sha
+              - wget -q https://github.com/mikefarah/yq/releases/download/3.4.0/yq_linux_amd64
+              - sha256sum -c yq_linux_amd64.sha
+              - mv yq_linux_amd64 /usr/bin/yq
+              - chmod +x /usr/bin/yq
+              - echo '048ca227d596df3d9d0a461d35fe8d082ed4f8f73cf266e77f5d0ee37ca4c78f  hadolint-Linux-x86_64' > hadolint-Linux-x86_64.sha
+              - wget -q https://github.com/hadolint/hadolint/releases/download/v2.3.0/hadolint-Linux-x86_64
+              - sha256sum -c hadolint-Linux-x86_64.sha
+              - mv hadolint-Linux-x86_64 /usr/bin/hadolint
+              - chmod +x /usr/bin/hadolint
+            pre_build:
+              commands:
+              - cd $CODEBUILD_SRC_DIR
+              - "$(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)"
+              - "{{ pipeline.inputs.unit_test_command }}"
+              - hadolint {{pipeline.inputs.app_directory}}/Dockerfile
+            build:
+              commands:
+              - IMAGE_REPO_NAME=$repo_name
+              - IMAGE_TAG=$CODEBUILD_BUILD_NUMBER
+              - IMAGE_ID=${AWS::AccountId}.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+              - LATEST_ID=${AWS::AccountId}.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+              - docker build --cache-from $LATEST_ID -t $IMAGE_REPO_NAME:$IMAGE_TAG {{pipeline.inputs.app_directory}}
+              - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $IMAGE_ID;
+              - docker push $IMAGE_ID;
+            post_build:
+              commands:
+              - aws proton --region $AWS_DEFAULT_REGION get-service --name $service_name | jq -r .service.spec > service.yaml
+              - yq w service.yaml 'instances[*].spec.image' "$IMAGE_ID" > rendered_service.yaml
+          artifacts:
+            files:
+            - rendered_service.yaml
         Type: CODEPIPELINE
-      EncryptionKey:
-        Fn::GetAtt:
-          - PipelineArtifactsBucketEncryptionKey
-          - Arn
+      EncryptionKey: !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
+
+  ScanProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+        - Name: repo_name
+          Type: PLAINTEXT
+          Value: !Ref ECRRepo
+        - Name: service_name
+          Type: PLAINTEXT
+          Value: '{{service.name}}'
+      ServiceRole: !GetAtt PublishRole.Arn
+      Source:
+        BuildSpec: !Sub |
+          ---
+          version: '0.2'
+          phases:
+            install:
+              runtime-versions:
+                docker: 18
+              commands:
+              - pip3 install --upgrade --user awscli
+            pre_build:
+              commands:
+              - cd $CODEBUILD_SRC_DIR
+              - "$(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)"
+            build:
+              commands:
+              - IMAGE_REPO_NAME=$repo_name
+              - LATEST_ID=${AWS::AccountId}.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:latest
+              - |
+                aws ecr start-image-scan --repository-name $IMAGE_REPO_NAME --image-id imageTag=$IMAGE_TAG
+
+                sleep 3
+                while [[ $(aws ecr describe-image-scan-findings --repository-name $IMAGE_REPO_NAME --image-id imageTag=$IMAGE_TAG | jq -r .imageScanStatus.status) != "COMPLETE" ]];do 
+                  echo "Waiting for scan to complete..."
+                  sleep 3
+                done
+
+                scan_results=$(aws ecr describe-image-scan-findings --repository-name $IMAGE_REPO_NAME --image-id imageTag=$IMAGE_TAG)
+                critical=$(echo $scan_results | jq .imageScanFindings.findingSeverityCounts.CRITICAL)
+
+                if [[ $critical -gt 0 ]]; then
+                  echo "Error: Critical vulnerabilities found"
+                  exit 1
+                fi
+              - docker pull $IMAGE_ID
+              - docker tag $IMAGE_ID $LATEST_ID
+              - docker push $LATEST_ID
+          artifacts:
+            files:
+            - rendered_service.yaml
+        Type: CODEPIPELINE
+      EncryptionKey: !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
+
 {% for service_instance in service_instances %}
   Deploy{{loop.index}}Project:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: '{{service.name}}-{{service_instance.name}}-deploy'
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -141,10 +187,7 @@ Resources:
             }
           }
         Type: CODEPIPELINE
-      EncryptionKey:
-        Fn::GetAtt:
-          - PipelineArtifactsBucketEncryptionKey
-          - Arn
+      EncryptionKey: !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
 {% endfor %}
   # This role is used to build and publish an image to ECR
   PublishRole:
@@ -167,28 +210,11 @@ Resources:
               - logs:CreateLogStream
               - logs:PutLogEvents
             Effect: Allow
-            Resource:
-              - Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":logs:"
-                    - Ref: AWS::Region
-                    - ":"
-                    - Ref: AWS::AccountId
-                    - :log-group:/aws/codebuild/
-                    - Ref: BuildProject
-              - Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":logs:"
-                    - Ref: AWS::Region
-                    - ":"
-                    - Ref: AWS::AccountId
-                    - :log-group:/aws/codebuild/
-                    - Ref: BuildProject
-                    - :*
+            Resource: 
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BuildProject}'
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BuildProject}:*'
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ScanProject}'
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ScanProject}:*'
           - Action:
               - codebuild:CreateReportGroup
               - codebuild:CreateReport
@@ -196,17 +222,8 @@ Resources:
               - codebuild:BatchPutTestCases
             Effect: Allow
             Resource:
-              Fn::Join:
-                - ""
-                - - "arn:"
-                  - Ref: AWS::Partition
-                  - ":codebuild:"
-                  - Ref: AWS::Region
-                  - ":"
-                  - Ref: AWS::AccountId
-                  - :report-group/
-                  - Ref: BuildProject
-                  - -*
+              - !Sub 'arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/${BuildProject}-*'
+              - !Sub 'arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/${ScanProject}-*'
           - Action:
               - ecr:GetAuthorizationToken
             Effect: Allow
@@ -218,11 +235,13 @@ Resources:
               - ecr:InitiateLayerUpload
               - ecr:PutImage
               - ecr:UploadLayerPart
+              - ecr:StartImageScan
+              - ecr:DescribeImageScanFindings
+              - ecr:BatchGetImage
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchCheckLayerAvailability
             Effect: Allow
-            Resource:
-              Fn::GetAtt:
-                - ECRRepo
-                - Arn
+            Resource: !Sub '${ECRRepo.Arn}*'
           - Action:
               - proton:GetService
             Effect: Allow
@@ -236,15 +255,8 @@ Resources:
               - s3:Abort*
             Effect: Allow
             Resource:
-              - Fn::GetAtt:
-                  - PipelineArtifactsBucket
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - PipelineArtifactsBucket
-                        - Arn
-                    - /*
+              - !GetAtt PipelineArtifactsBucket.Arn
+              - !Sub '${PipelineArtifactsBucket.Arn}/*'
           - Action:
               - kms:Decrypt
               - kms:DescribeKey
@@ -253,9 +265,7 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineArtifactsBucketEncryptionKey
-                - Arn
+              - !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
           - Action:
               - kms:Decrypt
               - kms:Encrypt
@@ -263,9 +273,7 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineArtifactsBucketEncryptionKey
-                - Arn
+              - !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
         Version: "2012-10-17"
       PolicyName: PublishRoleDefaultPolicy
       Roles:
@@ -274,7 +282,6 @@ Resources:
   DeploymentRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: '{{service.name}}-deployment'
       AssumeRolePolicyDocument:
         Statement:
           - Action: sts:AssumeRole
@@ -293,24 +300,8 @@ Resources:
               - logs:PutLogEvents
             Effect: Allow
             Resource:
-              - Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":logs:"
-                    - Ref: AWS::Region
-                    - ":"
-                    - Ref: AWS::AccountId
-                    - :log-group:/aws/codebuild/Deploy*Project*
-              - Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":logs:"
-                    - Ref: AWS::Region
-                    - ":"
-                    - Ref: AWS::AccountId
-                    - :log-group:/aws/codebuild/Deploy*Project:*
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Deploy*Project*'
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Deploy*Project:*'
           - Action:
               - codebuild:CreateReportGroup
               - codebuild:CreateReport
@@ -318,16 +309,7 @@ Resources:
               - codebuild:BatchPutTestCases
             Effect: Allow
             Resource:
-              Fn::Join:
-                - ""
-                - - "arn:"
-                  - Ref: AWS::Partition
-                  - ":codebuild:"
-                  - Ref: AWS::Region
-                  - ":"
-                  - Ref: AWS::AccountId
-                  - :report-group/Deploy*Project
-                  - -*
+              - !Sub 'arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/Deploy*Project-*'
           - Action:
               - proton:UpdateServiceInstance
               - proton:GetServiceInstance
@@ -339,23 +321,14 @@ Resources:
               - s3:List*
             Effect: Allow
             Resource:
-              - Fn::GetAtt:
-                  - PipelineArtifactsBucket
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - PipelineArtifactsBucket
-                        - Arn
-                    - /*
+              - !GetAtt PipelineArtifactsBucket.Arn
+              - !Sub '${PipelineArtifactsBucket.Arn}/*'
           - Action:
               - kms:Decrypt
               - kms:DescribeKey
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineArtifactsBucketEncryptionKey
-                - Arn
+              - !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
           - Action:
               - kms:Decrypt
               - kms:Encrypt
@@ -363,9 +336,7 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineArtifactsBucketEncryptionKey
-                - Arn
+              - !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
         Version: "2012-10-17"
       PolicyName: DeploymentRoleDefaultPolicy
       Roles:
@@ -410,10 +381,7 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Principal:
-              AWS:
-                Fn::GetAtt:
-                  - PipelineRole
-                  - Arn
+              AWS: !GetAtt PipelineRole.Arn
             Resource: "*"
           - Action:
               - kms:Decrypt
@@ -423,10 +391,7 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Principal:
-              AWS:
-                Fn::GetAtt:
-                  - PublishRole
-                  - Arn
+              AWS: !GetAtt PublishRole.Arn
             Resource: "*"
           - Action:
               - kms:Decrypt
@@ -435,20 +400,14 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Principal:
-              AWS:
-                Fn::GetAtt:
-                  - PublishRole
-                  - Arn
+              AWS: !GetAtt PublishRole.Arn
             Resource: "*"
           - Action:
               - kms:Decrypt
               - kms:DescribeKey
             Effect: Allow
             Principal:
-              AWS:
-                Fn::GetAtt:
-                  - DeploymentRole
-                  - Arn
+              AWS: !GetAtt DeploymentRole.Arn
             Resource: "*"
           - Action:
               - kms:Decrypt
@@ -457,10 +416,7 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Principal:
-              AWS:
-                Fn::GetAtt:
-                  - DeploymentRole
-                  - Arn
+              AWS: !GetAtt DeploymentRole.Arn
             Resource: "*"
         Version: "2012-10-17"
     UpdateReplacePolicy: Delete
@@ -473,10 +429,7 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              KMSMasterKeyID:
-                Fn::GetAtt:
-                  - PipelineArtifactsBucketEncryptionKey
-                  - Arn
+              KMSMasterKeyID: !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
               SSEAlgorithm: aws:kms
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -489,16 +442,12 @@ Resources:
     Type: AWS::KMS::Alias
     Properties:
       AliasName: 'alias/codepipeline-encryption-key-{{ service.name }}'
-      TargetKeyId:
-        Fn::GetAtt:
-          - PipelineArtifactsBucketEncryptionKey
-          - Arn
+      TargetKeyId: !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
     UpdateReplacePolicy: Delete
     DeletionPolicy: Delete
   PipelineRole:
     Type: AWS::IAM::Role
     Properties:
-      '{{service.name}}-pipeline'
       AssumeRolePolicyDocument:
         Statement:
           - Action: sts:AssumeRole
@@ -520,15 +469,8 @@ Resources:
               - s3:Abort*
             Effect: Allow
             Resource:
-              - Fn::GetAtt:
-                  - PipelineArtifactsBucket
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - PipelineArtifactsBucket
-                        - Arn
-                    - /*
+              - !GetAtt PipelineArtifactsBucket.Arn
+              - !Sub '${PipelineArtifactsBucket.Arn}/*'
           - Action:
               - kms:Decrypt
               - kms:DescribeKey
@@ -537,24 +479,18 @@ Resources:
               - kms:GenerateDataKey*
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineArtifactsBucketEncryptionKey
-                - Arn
+              - !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
           - Action: codestar-connections:*
             Effect: Allow
             Resource: "*"
           - Action: sts:AssumeRole
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineBuildCodePipelineActionRole
-                - Arn
+              - !GetAtt PipelineBuildCodePipelineActionRole.Arn
           - Action: sts:AssumeRole
             Effect: Allow
             Resource:
-              Fn::GetAtt:
-                - PipelineDeployCodePipelineActionRole
-                - Arn
+              - !GetAtt PipelineDeployCodePipelineActionRole.Arn
         Version: "2012-10-17"
       PolicyName: PipelineRoleDefaultPolicy
       Roles:
@@ -562,11 +498,8 @@ Resources:
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: '{{service.name}}-deployment'
-      RoleArn:
-        Fn::GetAtt:
-          - PipelineRole
-          - Arn
+      Name: '{{ service.name }}-deployment'
+      RoleArn: !GetAtt PipelineRole.Arn
       Stages:
         - Actions:
             - ActionTypeId:
@@ -597,11 +530,24 @@ Resources:
               Name: Build
               OutputArtifacts:
                 - Name: BuildOutput
-              RoleArn:
-                Fn::GetAtt:
-                  - PipelineBuildCodePipelineActionRole
-                  - Arn
+              RoleArn: !GetAtt PipelineBuildCodePipelineActionRole.Arn
               RunOrder: 1
+              Namespace: BuildProject
+            - ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName:
+                  Ref: ScanProject
+                EnvironmentVariables: '[{"name":"IMAGE_ID","value":"#{BuildProject.IMAGE_ID}","type":"PLAINTEXT"},{"name":"IMAGE_TAG","value":"#{BuildProject.IMAGE_TAG}","type":"PLAINTEXT"}]'
+
+              InputArtifacts:
+                - Name: Artifact_Source_Checkout
+              Name: Scan
+              RoleArn: !GetAtt PipelineBuildCodePipelineActionRole.Arn
+              RunOrder: 2
           Name: Build {%- for service_instance in service_instances %}
         - Actions:
             - ActionTypeId:
@@ -615,19 +561,13 @@ Resources:
               InputArtifacts:
                 - Name: BuildOutput
               Name: Deploy
-              RoleArn:
-                Fn::GetAtt:
-                  - PipelineDeployCodePipelineActionRole
-                  - Arn
+              RoleArn: !GetAtt PipelineDeployCodePipelineActionRole.Arn
               RunOrder: 1
-          Name: 'Deploy{{service_instance.name}}'
+          Name: 'Deploy-{{service_instance.name}}'
 {%- endfor %}
       ArtifactStore:
         EncryptionKey:
-          Id:
-            Fn::GetAtt:
-              - PipelineArtifactsBucketEncryptionKey
-              - Arn
+          Id: !GetAtt PipelineArtifactsBucketEncryptionKey.Arn
           Type: KMS
         Location:
           Ref: PipelineArtifactsBucket
@@ -638,20 +578,12 @@ Resources:
   PipelineBuildCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
-      Name: '{{service.name}}-codebuild-build'
       AssumeRolePolicyDocument:
         Statement:
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
-              AWS:
-                Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":iam::"
-                    - Ref: AWS::AccountId
-                    - :root
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
         Version: "2012-10-17"
   PipelineBuildCodePipelineActionRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -663,10 +595,9 @@ Resources:
               - codebuild:StartBuild
               - codebuild:StopBuild
             Effect: Allow
-            Resource:
-              Fn::GetAtt:
-                - BuildProject
-                - Arn
+            Resource: 
+              - !GetAtt BuildProject.Arn
+              - !GetAtt ScanProject.Arn
         Version: "2012-10-17"
       PolicyName: PipelineBuildCodePipelineActionRoleDefaultPolicy
       Roles:
@@ -674,20 +605,12 @@ Resources:
   PipelineDeployCodePipelineActionRole:
     Type: AWS::IAM::Role
     Properties:
-      Name: '{{service.name}}-codebuild-deploy'
       AssumeRolePolicyDocument:
         Statement:
           - Action: sts:AssumeRole
             Effect: Allow
             Principal:
-              AWS:
-                Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":iam::"
-                    - Ref: AWS::AccountId
-                    - :root
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
         Version: "2012-10-17"
   PipelineDeployCodePipelineActionRoleDefaultPolicy:
     Type: AWS::IAM::Policy
@@ -700,15 +623,7 @@ Resources:
               - codebuild:StopBuild
             Effect: Allow
             Resource:
-              Fn::Join:
-                - ""
-                - - "arn:"
-                  - Ref: AWS::Partition
-                  - ":codebuild:"
-                  - Ref: AWS::Region
-                  - ":"
-                  - Ref: AWS::AccountId
-                  - ":project/Deploy*"
+              - !Sub 'arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/Deploy*'
         Version: "2012-10-17"
       PolicyName: PipelineDeployCodePipelineActionRoleDefaultPolicy
       Roles:

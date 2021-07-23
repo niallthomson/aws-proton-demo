@@ -317,7 +317,7 @@ Resources:
       HostedZoneId: '{{environment.outputs.HostedZone}}'
       Comment: Zone apex alias targeted to LoadBalancer.
       RecordSets:
-      - Name: '{{service.name}}.{{environment.outputs.DnsDomain}}.'
+      - Name: '{{service.name}}-{{service_instance.name}}.{{environment.outputs.DnsDomain}}.'
         Type: A
         AliasTarget:
           HostedZoneId: !GetAtt 'PublicLoadBalancer.CanonicalHostedZoneID'
@@ -326,4 +326,4 @@ Resources:
 Outputs:
   ServiceEndpoint:
     Description: The URL to access the service
-    Value: 'https://{{service.name}}.{{environment.outputs.DnsDomain}}.'
+    Value: 'https://{{service.name}}-{{service_instance.name}}.{{environment.outputs.DnsDomain}}'
