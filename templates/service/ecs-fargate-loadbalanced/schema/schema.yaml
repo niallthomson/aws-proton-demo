@@ -11,7 +11,7 @@ schema:
       properties:
         port:
           type: number
-          description: "The port to route traffic to"
+          description: "The port the application serves traffic on"
           default: 8080
           minimum: 0
           maximum: 65535
@@ -37,6 +37,12 @@ schema:
           default: "ealen/echo-server:0.5.1"
           minLength: 1
           maxLength: 200
+      required:
+        - port
+        - health_check_path
+        - desired_count
+        - task_size
+        - image
 
     PipelineInputs:
       type: object
