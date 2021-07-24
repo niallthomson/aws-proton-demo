@@ -24,7 +24,7 @@ schema:
           pattern: ([0-9]{1,3}\.){3}[0-9]{1,3}($|/(16|24))
         root_hosted_zone:
           type: string
-          description: "The Route53 root hosted zone"
+          description: "The Route53 root hosted zone ID"
         route53_domain:
           type: string
           description: "The Route53 sub-domain to create"
