@@ -7,6 +7,56 @@ It provides the following features:
 * A Route53 hosted zone that can be used for service instances to create domains
 * An ECS cluster with associated task execution IAM role
 
+## Usage
+
+First, create an environment template, which will contain all of the environment template's versions.
+
+```
+aws proton create-environment-template \
+  --name "ecs-public-vpc" \
+  --display-name "ECS Public VPC" \
+  --description "VPC with Public Access and ECS Cluster"
+```
+
+Now create a version which contains the contents of the sample environment template. Compress the sample template files and register the version:
+
+```
+tar -zcvf env-template.tar.gz templates/environment/ecs-public-vpc
+
+aws s3 cp env-template.tar.gz s3://proton-cli-templates-${ACCOUNT_ID}/env-template.tar.gz
+
+rm env-template.tar.gz
+
+aws proton create-environment-template-version \
+  --template-name "ecs-public-vpc" \
+  --description "Initial version" \
+  --source s3="{bucket=proton-cli-templates-${ACCOUNT_ID},key=env-template.tar.gz}"
+```
+
+Wait for the environment template version to be successfully registered:
+
+```
+aws proton wait environment-template-version-registered \
+  --template-name "ecs-public-vpc" \
+  --major-version "1" \
+  --minor-version "0"
+  
+aws proton get-environment-template-version \
+  --template-name "ecs-public-vpc" \
+  --major-version "1" \
+  --minor-version "0"
+```
+
+You can now publish the environment template version, making it available for users in your AWS account to create Proton environments.
+
+```
+aws proton update-environment-template-version \
+  --template-name "ecs-public-vpc" \
+  --major-version "1" \
+  --minor-version "0" \
+  --status "PUBLISHED"
+```
+
 ## Reference
 
 ### Inputs

@@ -19,6 +19,7 @@ This service template has the following requirements from an environment templat
 1. Provides a VPC with two subnets
 1. Provides an ECS cluster
 1. Provides an ECS task execution role
+1. Provides a Route53 hosted zone
 
 ### Workload
 
@@ -26,6 +27,57 @@ This service template has the following requirements for workloads to be deploye
 1. Serves HTTP traffic
 1. Can pass an HTTP health check
 1. Provides a `Dockerfile` in the root of the application source directory
+
+## Usage
+
+First, create the service template.
+
+```
+aws proton create-service-template \
+  --name "ecs-fargate-loadbalanced" \
+  --display-name "Load Balanced ECS Fargate Service" \
+  --description "ECS Fargate Service with an Application Load Balancer"
+```
+
+Now create a version which contains the contents of the sample service template. Compress the sample template files and register the version:
+
+```
+tar -zcvf svc-template.tar.gz templates/service/ecs-fargate-loadbalanced
+
+aws s3 cp svc-template.tar.gz s3://proton-cli-templates-${ACCOUNT_ID}/svc-template.tar.gz --region us-west-2
+
+rm svc-template.tar.gz
+
+aws proton create-service-template-version \
+  --template-name "ecs-fargate-loadbalanced" \
+  --description "Version 1" \
+  --source s3="{bucket=proton-cli-templates-${ACCOUNT_ID},key=svc-template.tar.gz}" \
+  --compatible-environment-templates '[{"templateName":"ecs-public-vpc","majorVersion":"1"}]'
+```
+
+Wait for the service template to be successfully registered:
+
+```
+aws proton wait service-template-version-registered \
+  --template-name "ecs-fargate-loadbalanced" \
+  --major-version "1" \
+  --minor-version "0"
+  
+aws proton get-service-template-version \
+  --template-name "ecs-fargate-loadbalanced" \
+  --major-version "1" \
+  --minor-version "0"
+```
+
+You can now publish the service template version, making it available for users in your AWS account to create Proton services.
+
+```
+aws proton update-service-template-version \
+  --template-name "ecs-fargate-loadbalanced" \
+  --major-version "1" \
+  --minor-version "0" \
+  --status "PUBLISHED"
+```
 
 ## Reference
 
