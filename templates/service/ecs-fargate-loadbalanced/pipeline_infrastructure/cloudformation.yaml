@@ -239,7 +239,6 @@ Resources:
               - ecr:DescribeImageScanFindings
               - ecr:BatchGetImage
               - ecr:GetDownloadUrlForLayer
-              - ecr:BatchCheckLayerAvailability
             Effect: Allow
             Resource: !Sub '${ECRRepo.Arn}*'
           - Action:
