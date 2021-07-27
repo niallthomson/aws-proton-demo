@@ -3,7 +3,9 @@
 This AWS Proton environment template provisions the basic foundations for an ECS Fargate service running in public VPC subnets
 
 It provides the following features:
-* A VPC with two public subnets
+* A VPC
+* Two public subnets
+* Two private subnets
 * A Route53 hosted zone that can be used for service instances to create domains
 * An ECS cluster with associated task execution IAM role
 
