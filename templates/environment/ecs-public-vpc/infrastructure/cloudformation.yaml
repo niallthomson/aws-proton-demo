@@ -2,20 +2,21 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS Fargate cluster running containers in a public subnet. Only supports
              public facing load balancer, and public service discovery namespaces.
 Mappings:
-  SubnetConfig:
+  Config:
     VPC:
       CIDR: '{{ environment.inputs.vpc_cidr}}'
     PublicOne:
       CIDR: '{{ environment.inputs.subnet_one_cidr}}'
     PublicTwo:
       CIDR: '{{ environment.inputs.subnet_two_cidr}}'
+      
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      CidrBlock: !FindInMap ['SubnetConfig', 'VPC', 'CIDR']
+      CidrBlock: !FindInMap ['Config', 'VPC', 'CIDR']
       Tags:
       - Key: Name
         Value: '{{environment.name}}-vpc'
@@ -24,12 +25,9 @@ Resources:
   PublicSubnetOne:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone:
-         Fn::Select:
-         - 0
-         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      AvailabilityZone: AvailabilityZone: !Select [0, !GetAZs '']
       VpcId: !Ref 'VPC'
-      CidrBlock: !FindInMap ['SubnetConfig', 'PublicOne', 'CIDR']
+      CidrBlock: !FindInMap ['Config', 'PublicOne', 'CIDR']
       MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
@@ -38,12 +36,9 @@ Resources:
   PublicSubnetTwo:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone:
-         Fn::Select:
-         - 1
-         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      AvailabilityZone: AvailabilityZone: !Select [1, !GetAZs '']
       VpcId: !Ref 'VPC'
-      CidrBlock: !FindInMap ['SubnetConfig', 'PublicTwo', 'CIDR']
+      CidrBlock: !FindInMap ['Config', 'PublicTwo', 'CIDR']
       MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
@@ -115,20 +110,20 @@ Resources:
           Action: ['sts:AssumeRole']
       Path: /
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+      - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
 
   HostedZone:
     Type: 'AWS::Route53::HostedZone'
     Properties:
       HostedZoneConfig:
         Comment: 'Hosted zone for {{environment.name}} environment'
-      Name: '{{environment.inputs.route53_domain}}'
+      Name: '{{environment.inputs.dns_domain}}.{{environment.inputs.root_hosted_zone}}'
 
   ZoneRecordSet:
     Type: 'AWS::Route53::RecordSet'
     Properties:
-      HostedZoneId: '{{environment.inputs.root_hosted_zone}}'
-      Name: '{{environment.inputs.route53_domain}}.'
+      HostedZoneName: '{{environment.inputs.root_hosted_zone}}.'
+      Name: '{{environment.inputs.dns_domain}}.{{environment.inputs.root_hosted_zone}}.'
       Type: NS
       TTL: '300'
       ResourceRecords: !GetAtt HostedZone.NameServers
@@ -164,4 +159,4 @@ Outputs:
     Value: !Ref HostedZone
   DnsDomain:
     Description: The Route53 DNS domain
-    Value: '{{environment.inputs.route53_domain}}'
+    Value: '{{environment.inputs.dns_domain}}.{{environment.inputs.root_hosted_zone}}'

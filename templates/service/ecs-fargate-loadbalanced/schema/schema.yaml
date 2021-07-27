@@ -42,7 +42,6 @@ schema:
         - health_check_path
         - desired_count
         - task_size
-        - image
 
     PipelineInputs:
       type: object

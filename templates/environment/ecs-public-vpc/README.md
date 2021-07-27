@@ -66,8 +66,8 @@ aws proton update-environment-template-version \
 | `vpc_cidr` | The CIDR range for your VPC | `string` | `10.0.0.0/16` | yes |
 | `subnet_one_cidr` | The CIDR range for subnet one | `string` | `10.0.0.0/24` | yes |
 | `subnet_two_cidr` | The CIDR range for subnet two | `string` | `10.0.1.0/24` | yes |
-| `root_hosted_zone` | The Route53 root hosted zone ID (ex. `Z8VLZEXAMPLE`) | `string` | | yes |
-| `route53_domain` | The Route53 sub-domain to create (ex. `prod.example.com`) | `string` |  | yes |
+| `root_hosted_zone` | The Route53 root hosted zone ID (ex. `example.com`) | `string` | | yes |
+| `dns_domain` | The Route53 sub-domain to create (ex. `prod`) | `string` |  | yes |
 
 ### Outputs
 
