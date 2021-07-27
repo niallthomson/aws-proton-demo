@@ -14,7 +14,8 @@ Quick links to the environment and service templates:
 
 | Name | Description | Link |
 |------|-------------|------|
-| ECS Public VPC | VPC with Public Access and ECS Cluster | [Docs](/templates/environment/ecs-public-vpc/README.md) |
+| ECS Public VPC | VPC with public access and compute, and an ECS Cluster | [Docs](/templates/environment/ecs-public-vpc/README.md) |
+| ECS Public/Private VPC | VPC with public access, private compute, and an ECS Cluster | [Docs](/templates/environment/ecs-public-private-vpc/README.md) |
 
 ### Service Templates
 

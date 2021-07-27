@@ -52,7 +52,7 @@ aws proton create-service-template-version \
   --template-name "ecs-fargate-loadbalanced" \
   --description "Version 1" \
   --source s3="{bucket=proton-cli-templates-${ACCOUNT_ID},key=svc-template.tar.gz}" \
-  --compatible-environment-templates '[{"templateName":"ecs-public-vpc","majorVersion":"1"}]'
+  --compatible-environment-templates '[{"templateName":"ecs-public-vpc","majorVersion":"1"},{"templateName":"ecs-public-private-vpc","majorVersion":"1"}]'
 ```
 
 Wait for the service template to be successfully registered:

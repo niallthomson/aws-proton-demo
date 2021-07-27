@@ -17,6 +17,7 @@ Mappings:
     x-large:
       cpu: 4096
       memory: 8192
+
 Resources:
   # A log group for storing the stdout logs from this service's containers
   LogGroup:
@@ -34,7 +35,7 @@ Resources:
       Memory: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, memory]
       NetworkMode: awsvpc
       RequiresCompatibilities:
-        - FARGATE
+      - FARGATE
       ExecutionRoleArn: '{{environment.outputs.ECSTaskExecutionRole}}'
       TaskRoleArn: !Ref "AWS::NoValue"
       ContainerDefinitions:
@@ -46,7 +47,7 @@ Resources:
           - Name: PORT
             Value: '{{service_instance.inputs.port}}'
           PortMappings:
-            - ContainerPort: '{{service_instance.inputs.port}}'
+          - ContainerPort: '{{service_instance.inputs.port}}'
           LogConfiguration:
             LogDriver: 'awslogs'
             Options:
@@ -73,17 +74,16 @@ Resources:
       DesiredCount: '{{service_instance.inputs.desired_count}}'
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: ENABLED
           SecurityGroups:
-            - '{{environment.outputs.ContainerSecurityGroup}}'
+          - '{{environment.outputs.ContainerSecurityGroup}}'
           Subnets:
-            - '{{environment.outputs.PublicSubnetOne}}'
-            - '{{environment.outputs.PublicSubnetTwo}}'
+          - '{{environment.outputs.ComputeSubnetOne}}'
+          - '{{environment.outputs.ComputeSubnetTwo}}'
       TaskDefinition: !Ref 'TaskDefinition'
       LoadBalancers:
-        - ContainerName: '{{service_instance.name}}'
-          ContainerPort: '{{service_instance.inputs.port}}'
-          TargetGroupArn: !Ref 'TargetGroup'
+      - ContainerName: '{{service_instance.name}}'
+        ContainerPort: '{{service_instance.inputs.port}}'
+        TargetGroupArn: !Ref 'TargetGroup'
 
   # A target group. This is used for keeping track of all the tasks, and
   # what IP addresses / port numbers they have. You can query it yourself,
@@ -114,12 +114,12 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref 'TargetGroup'
-          Type: 'forward'
+      - TargetGroupArn: !Ref 'TargetGroup'
+        Type: 'forward'
       Conditions:
-        - Field: path-pattern
-          Values:
-            - '*'
+      - Field: path-pattern
+        Values:
+        - '*'
       ListenerArn: !Ref PublicLoadBalancerListener
       Priority: 1
 
@@ -130,12 +130,7 @@ Resources:
     Properties:
       ServiceNamespace: 'ecs'
       ScalableDimension: 'ecs:service:DesiredCount'
-      ResourceId:
-        Fn::Join:
-          - '/'
-          - - service
-            - '{{environment.outputs.ClusterName}}'
-            - '{{service.name}}-{{service_instance.name}}'
+      ResourceId: !Sub 'service/{{environment.outputs.ClusterName}}/{{service.name}}-{{service_instance.name}}'
       MinCapacity: 1
       MaxCapacity: 10
       RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
@@ -145,26 +140,16 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     DependsOn: ScalableTarget
     Properties:
-      PolicyName:
-        Fn::Join:
-          - '/'
-          - - scale
-            - '{{service.name}}-{{service_instance.name}}'
-            - down
+      PolicyName: !Sub 'scale/{{service.name}}-{{service_instance.name}}/down'
       PolicyType: StepScaling
-      ResourceId:
-        Fn::Join:
-          - '/'
-          - - service
-            - '{{environment.outputs.ClusterName}}'
-            - '{{service.name}}-{{service_instance.name}}'
+      ResourceId: !Sub 'service/{{environment.outputs.ClusterName}}/{{service.name}}-{{service_instance.name}}'
       ScalableDimension: 'ecs:service:DesiredCount'
       ServiceNamespace: 'ecs'
       StepScalingPolicyConfiguration:
         AdjustmentType: 'ChangeInCapacity'
         StepAdjustments:
-          - MetricIntervalUpperBound: 0
-            ScalingAdjustment: -1
+        - MetricIntervalUpperBound: 0
+          ScalingAdjustment: -1
         MetricAggregationType: 'Average'
         Cooldown: 60
 
@@ -172,32 +157,22 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     DependsOn: ScalableTarget
     Properties:
-      PolicyName:
-        Fn::Join:
-          - '/'
-          - - scale
-            - '{{service.name}}-{{service_instance.name}}'
-            - up
+      PolicyName: !Sub 'scale/{{service.name}}-{{service_instance.name}}/up'
       PolicyType: StepScaling
-      ResourceId:
-        Fn::Join:
-          - '/'
-          - - service
-            - '{{environment.outputs.ClusterName}}'
-            - '{{service.name}}-{{service_instance.name}}'
+      ResourceId: !Sub 'service/{{environment.outputs.ClusterName}}/{{service.name}}-{{service_instance.name}}'
       ScalableDimension: 'ecs:service:DesiredCount'
       ServiceNamespace: 'ecs'
       StepScalingPolicyConfiguration:
         AdjustmentType: 'ChangeInCapacity'
         StepAdjustments:
-          - MetricIntervalLowerBound: 0
-            MetricIntervalUpperBound: 15
-            ScalingAdjustment: 1
-          - MetricIntervalLowerBound: 15
-            MetricIntervalUpperBound: 25
-            ScalingAdjustment: 2
-          - MetricIntervalLowerBound: 25
-            ScalingAdjustment: 3
+        - MetricIntervalLowerBound: 0
+          MetricIntervalUpperBound: 15
+          ScalingAdjustment: 1
+        - MetricIntervalLowerBound: 15
+          MetricIntervalUpperBound: 25
+          ScalingAdjustment: 2
+        - MetricIntervalLowerBound: 25
+          ScalingAdjustment: 3
         MetricAggregationType: 'Average'
         Cooldown: 60
 
@@ -205,60 +180,44 @@ Resources:
   LowCpuUsageAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName:
-        Fn::Join:
-          - '-'
-          - - low-cpu
-            - '{{service.name}}-{{service_instance.name}}'
-      AlarmDescription:
-        Fn::Join:
-          - ' '
-          - - "Low CPU utilization for service"
-            - '{{service.name}}-{{service_instance.name}}'
+      AlarmName: !Sub 'low-cpu-{{service.name}}-{{service_instance.name}}'
+      AlarmDescription: !Sub 'Low CPU utilization for service {{service.name}}-{{service_instance.name}}'
       MetricName: CPUUtilization
       Namespace: AWS/ECS
       Dimensions:
-        - Name: ServiceName
-          Value: '{{service.name}}-{{service_instance.name}}'
-        - Name: ClusterName
-          Value:
-            '{{environment.outputs.ClusterName}}'
+      - Name: ServiceName
+        Value: '{{service.name}}-{{service_instance.name}}'
+      - Name: ClusterName
+        Value:
+          '{{environment.outputs.ClusterName}}'
       Statistic: Average
       Period: 60
       EvaluationPeriods: 1
       Threshold: 20
       ComparisonOperator: LessThanOrEqualToThreshold
       AlarmActions:
-        - !Ref ScaleDownPolicy
+      - !Ref ScaleDownPolicy
 
   HighCpuUsageAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName:
-        Fn::Join:
-          - '-'
-          - - high-cpu
-            - '{{service.name}}-{{service_instance.name}}'
-      AlarmDescription:
-        Fn::Join:
-          - ' '
-          - - "High CPU utilization for service"
-            - '{{service.name}}-{{service_instance.name}}'
+      AlarmName: !Sub 'high-cpu-{{service.name}}-{{service_instance.name}}'
+      AlarmDescription: !Sub 'High CPU utilization for service {{service.name}}-{{service_instance.name}}'
       MetricName: CPUUtilization
       Namespace: AWS/ECS
       Dimensions:
-        - Name: ServiceName
-          Value: '{{service.name}}-{{service_instance.name}}'
-        - Name: ClusterName
-          Value:
-            '{{environment.outputs.ClusterName}}'
+      - Name: ServiceName
+        Value: '{{service.name}}-{{service_instance.name}}'
+      - Name: ClusterName
+        Value:
+          '{{environment.outputs.ClusterName}}'
       Statistic: Average
       Period: 60
       EvaluationPeriods: 1
       Threshold: 70
       ComparisonOperator: GreaterThanOrEqualToThreshold
       AlarmActions:
-        - !Ref ScaleUpPolicy
+      - !Ref ScaleUpPolicy
 
   EcsSecurityGroupIngressFromPublicALB:
     Type: AWS::EC2::SecurityGroupIngress
@@ -305,11 +264,11 @@ Resources:
   PublicLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
-      - PublicLoadBalancer
+    - PublicLoadBalancer
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref TargetGroup
-          Type: 'forward'
+      - TargetGroupArn: !Ref TargetGroup
+        Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
       Protocol: HTTP
@@ -317,13 +276,13 @@ Resources:
   PublicSslLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
-      - PublicLoadBalancer
+    - PublicLoadBalancer
     Properties:
       Certificates:
       - CertificateArn: !Ref ACMCertificate
       DefaultActions:
-        - TargetGroupArn: !Ref TargetGroup
-          Type: 'forward'
+      - TargetGroupArn: !Ref TargetGroup
+        Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 443
       Protocol: HTTPS
@@ -344,7 +303,7 @@ Resources:
     Type: AWS::CertificateManager::Certificate
     Properties: 
       DomainName: '{{service.name}}-{{service_instance.name}}.{{environment.outputs.DnsDomain}}'
-      CertificateTransparencyLoggingPreference: DISABLED
+      CertificateTransparencyLoggingPreference: ENABLED
       DomainValidationOptions:
       - DomainName: '{{service.name}}-{{service_instance.name}}.{{environment.outputs.DnsDomain}}'
         HostedZoneId: '{{environment.outputs.HostedZone}}'

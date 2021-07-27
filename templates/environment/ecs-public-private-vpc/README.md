@@ -1,4 +1,4 @@
-# AWS Proton Environment Template: ECS Public VPC
+# AWS Proton Environment Template: ECS Public/Private VPC
 
 This AWS Proton environment template provisions the basic foundations for an ECS Fargate service running in public VPC subnets
 
@@ -13,22 +13,22 @@ First, create an environment template, which will contain all of the environment
 
 ```
 aws proton create-environment-template \
-  --name "ecs-public-vpc" \
-  --display-name "ECS Public VPC" \
-  --description "VPC with public access and compute, and an ECS Cluster"
+  --name "ecs-public-private-vpc" \
+  --display-name "ECS Public/Private VPC" \
+  --description "VPC with public access, private compute, and an ECS Cluster"
 ```
 
 Now create a version which contains the contents of the sample environment template. Compress the sample template files and register the version:
 
 ```
-tar -zcvf env-template.tar.gz templates/environment/ecs-public-vpc
+tar -zcvf env-template.tar.gz templates/environment/ecs-public-private-vpc
 
 aws s3 cp env-template.tar.gz s3://proton-cli-templates-${ACCOUNT_ID}/env-template.tar.gz
 
 rm env-template.tar.gz
 
 aws proton create-environment-template-version \
-  --template-name "ecs-public-vpc" \
+  --template-name "ecs-public-private-vpc" \
   --description "Initial version" \
   --source s3="{bucket=proton-cli-templates-${ACCOUNT_ID},key=env-template.tar.gz}"
 ```
@@ -37,12 +37,12 @@ Wait for the environment template version to be successfully registered:
 
 ```
 aws proton wait environment-template-version-registered \
-  --template-name "ecs-public-vpc" \
+  --template-name "ecs-public-private-vpc" \
   --major-version "1" \
   --minor-version "0"
   
 aws proton get-environment-template-version \
-  --template-name "ecs-public-vpc" \
+  --template-name "ecs-public-private-vpc" \
   --major-version "1" \
   --minor-version "0"
 ```
@@ -51,7 +51,7 @@ You can now publish the environment template version, making it available for us
 
 ```
 aws proton update-environment-template-version \
-  --template-name "ecs-public-vpc" \
+  --template-name "ecs-public-private-vpc" \
   --major-version "1" \
   --minor-version "0" \
   --status "PUBLISHED"
@@ -64,10 +64,12 @@ aws proton update-environment-template-version \
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:-----:|
 | `vpc_cidr` | The CIDR range for your VPC | `string` | `10.0.0.0/16` | yes |
-| `subnet_one_cidr` | The CIDR range for subnet one | `string` | `10.0.0.0/24` | yes |
-| `subnet_two_cidr` | The CIDR range for subnet two | `string` | `10.0.1.0/24` | yes |
-| `root_hosted_zone` | The Route53 root hosted zone ID (ex. `Z8VLZEXAMPLE`) | `string` | | yes |
-| `route53_domain` | The Route53 sub-domain to create (ex. `prod.example.com`) | `string` |  | yes |
+| `public_subnet_one_cidr` | The CIDR range for public subnet one | `string` | `10.0.0.0/24` | yes |
+| `public_subnet_two_cidr` | The CIDR range for public subnet two | `string` | `10.0.1.0/24` | yes |
+| `private_subnet_one_cidr` | The CIDR range for private subnet one | `string` | `10.0.2.0/24` | yes |
+| `private_subnet_two_cidr` | The CIDR range for private subnet two | `string` | `10.0.3.0/24` | yes |
+| `root_hosted_zone` | The Route53 root hosted zone ID (ex. `example.com`) | `string` | | yes |
+| `dns_domain` | The Route53 sub-domain to create (ex. `prod`) | `string` |  | yes |
 
 ### Outputs
 
@@ -78,6 +80,8 @@ aws proton update-environment-template-version \
 | `VpcId` | The name of the ECS cluster |
 | `PublicSubnetOne` | Public subnet one |
 | `PublicSubnetTwo` | Public subnet two |
+| `PrivateSubnetOne` | Private subnet one |
+| `PrivateSubnetTwo` | Private subnet two |
 | `ComputeSubnetOne` | Compute subnet one |
 | `ComputeSubnetTwo` | Compute subnet two |
 | `ContainerSecurityGroup` | A security group used to allow Fargate containers to receive traffic |

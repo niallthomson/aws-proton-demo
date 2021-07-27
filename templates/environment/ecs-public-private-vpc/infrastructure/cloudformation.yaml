@@ -2,52 +2,72 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS Fargate cluster running containers in a public subnet. Only supports
              public facing load balancer, and public service discovery namespaces.
 Mappings:
-  SubnetConfig:
+  Config:
     VPC:
       CIDR: '{{ environment.inputs.vpc_cidr}}'
     PublicOne:
-      CIDR: '{{ environment.inputs.subnet_one_cidr}}'
+      CIDR: '{{ environment.inputs.public_subnet_one_cidr}}'
     PublicTwo:
-      CIDR: '{{ environment.inputs.subnet_two_cidr}}'
+      CIDR: '{{ environment.inputs.public_subnet_two_cidr}}'
+    PrivateOne:
+      CIDR: '{{ environment.inputs.private_subnet_one_cidr}}'
+    PrivateTwo:
+      CIDR: '{{ environment.inputs.private_subnet_two_cidr}}'
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      CidrBlock: !FindInMap ['SubnetConfig', 'VPC', 'CIDR']
+      CidrBlock: !FindInMap ['Config', 'VPC', 'CIDR']
       Tags:
       - Key: Name
         Value: '{{environment.name}}-vpc'
 
-  # Two public subnets, where containers will have public IP addresses
   PublicSubnetOne:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone:
-         Fn::Select:
-         - 0
-         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      AvailabilityZone: !Select [0, !GetAZs '']
       VpcId: !Ref 'VPC'
-      CidrBlock: !FindInMap ['SubnetConfig', 'PublicOne', 'CIDR']
+      CidrBlock: !FindInMap ['Config', 'PublicOne', 'CIDR']
       MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
-        Value: '{{environment.name}}-subnet1'
+        Value: '{{environment.name}}-public-subnet1'
 
   PublicSubnetTwo:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone:
-         Fn::Select:
-         - 1
-         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      AvailabilityZone: !Select [1, !GetAZs '']
       VpcId: !Ref 'VPC'
-      CidrBlock: !FindInMap ['SubnetConfig', 'PublicTwo', 'CIDR']
+      CidrBlock: !FindInMap ['Config', 'PublicTwo', 'CIDR']
       MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
-        Value: '{{environment.name}}-subnet2'
+        Value: '{{environment.name}}-public-subnet2'
+
+  PrivateSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      VpcId: !Ref 'VPC'
+      CidrBlock: !FindInMap ['Config', 'PrivateOne', 'CIDR']
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: '{{environment.name}}-private-subnet1'
+
+  PrivateSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      VpcId: !Ref 'VPC'
+      CidrBlock: !FindInMap ['Config', 'PrivateTwo', 'CIDR']
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: '{{environment.name}}-private-subnet2'
 
   # Setup networking resources for the public subnets. Containers
   # in the public subnets have public IP addresses and the routing table
@@ -60,6 +80,30 @@ Resources:
     Properties:
       VpcId: !Ref 'VPC'
       InternetGatewayId: !Ref 'InternetGateway'
+
+  NatGatewayOneEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachement
+    Properties:
+      Domain: vpc
+
+  NatGatewayTwoEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachement
+    Properties:
+      Domain: vpc
+
+  NatGatewayOne:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayOneEIP.AllocationId
+      SubnetId: !Ref PublicSubnetOne
+
+  NatGatewayTwo:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayTwoEIP.AllocationId
+      SubnetId: !Ref PublicSubnetTwo
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -85,6 +129,42 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnetTwo
       RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTableOne:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  DefaultPrivateRouteOne:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableOne
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayOne
+
+  PrivateSubnetOneRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableOne
+      SubnetId: !Ref PrivateSubnetOne
+
+  PrivateRouteTableTwo:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  DefaultPrivateRouteTwo:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableTwo
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayTwo
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableTwo
+      SubnetId: !Ref PrivateSubnetTwo
 
   # ECS Resources
   ECSCluster:
@@ -122,13 +202,13 @@ Resources:
     Properties:
       HostedZoneConfig:
         Comment: 'Hosted zone for {{environment.name}} environment'
-      Name: '{{environment.inputs.route53_domain}}'
+      Name: '{{environment.inputs.dns_domain}}.{{environment.inputs.root_hosted_zone}}'
 
   ZoneRecordSet:
     Type: 'AWS::Route53::RecordSet'
     Properties:
-      HostedZoneId: '{{environment.inputs.root_hosted_zone}}'
-      Name: '{{environment.inputs.route53_domain}}.'
+      HostedZoneName: '{{environment.inputs.root_hosted_zone}}.'
+      Name: '{{environment.inputs.dns_domain}}.{{environment.inputs.root_hosted_zone}}.'
       Type: NS
       TTL: '300'
       ResourceRecords: !GetAtt HostedZone.NameServers
@@ -150,12 +230,18 @@ Outputs:
   PublicSubnetTwo:
     Description: Public subnet two
     Value: !Ref 'PublicSubnetTwo'
+  PrivateSubnetOne:
+    Description: Private subnet one
+    Value: !Ref 'PrivateSubnetOne'
+  PrivateSubnetTwo:
+    Description: Private subnet two
+    Value: !Ref 'PrivateSubnetTwo'
   ComputeSubnetOne:
     Description: Compute subnet one
-    Value: !Ref 'PublicSubnetOne'
+    Value: !Ref 'PrivateSubnetOne'
   ComputeSubnetTwo:
     Description: Compute subnet two
-    Value: !Ref 'PublicSubnetTwo'
+    Value: !Ref 'PrivateSubnetTwo'
   ContainerSecurityGroup:
     Description: A security group used to allow Fargate containers to receive traffic
     Value: !Ref 'ContainerSecurityGroup'
@@ -164,4 +250,4 @@ Outputs:
     Value: !Ref HostedZone
   DnsDomain:
     Description: The Route53 DNS domain
-    Value: '{{environment.inputs.route53_domain}}'
+    Value: '{{environment.inputs.dns_domain}}.{{environment.inputs.root_hosted_zone}}'
