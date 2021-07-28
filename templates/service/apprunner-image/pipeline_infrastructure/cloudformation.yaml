@@ -134,8 +134,8 @@ Resources:
                   sleep 3
                 done
 
-                scan_results=$(aws ecr describe-image-scan-findings --repository-name $IMAGE_REPO_NAME --image-id imageTag=$IMAGE_TAG)
-                critical=$(echo $scan_results | jq .imageScanFindings.findingSeverityCounts.CRITICAL)
+                aws ecr describe-image-scan-findings --repository-name $IMAGE_REPO_NAME --image-id imageTag=$IMAGE_TAG > scan.json
+                critical=$(jq -n --slurpfile scan scan.json '$scan[0].imageScanFindings.findingSeverityCounts.CRITICAL')
 
                 if [[ $critical -gt 0 ]]; then
                   echo "Error: Critical vulnerabilities found"

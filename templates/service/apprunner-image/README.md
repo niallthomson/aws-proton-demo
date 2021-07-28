@@ -1,6 +1,6 @@
-# AWS Proton Service Template: App Runner Service from Image
+# AWS Proton Service Template: App Runner Service from Image (Dockerfile)
 
-This AWS Proton service template provisions an AWS App Runner service using a container image source.
+This AWS Proton service template provisions an AWS App Runner service using a container image build from a Dockerfile provided with the application source code.
 
 It provides the following features:
 * Builds the container image in the pipeline to be deployed to App Runner
@@ -30,8 +30,8 @@ First, create the service template.
 ```
 aws proton create-service-template \
   --name "apprunner-image" \
-  --display-name "App Runner public service" \
-  --description "App Runner service which serves traffic from a public endpoint"
+  --display-name "App Runner Service from Image (Dockerfile)" \
+  --description "App Runner service which uses a container image build from a Dockerfile"
 ```
 
 Now create a version which contains the contents of the sample service template. Compress the sample template files and register the version:
