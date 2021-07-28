@@ -1,0 +1,65 @@
+schema:
+  format:
+    openapi: "3.0.0"
+  service_input_type: "AppRunnerInput"
+  pipeline_input_type: "PipelineInputs"
+
+  types:
+    AppRunnerInput:
+      type: object
+      description: "Input properties for an App Runner service"
+      properties:
+        port:
+          type: number
+          description: "The port the application serves traffic on"
+          default: 8080
+          minimum: 0
+          maximum: 65535
+        health_check_path:
+          type: string
+          description: "The path used to perform an HTTP health check"
+          default: "/"
+          minLength: 1
+          maxLength: 200
+        task_size:
+          type: string
+          description: "The size of the task you want to run"
+          enum: ["small", "medium", "large"]
+          default: "small"
+        image:
+          type: string
+          description: "The name/url of the container image"
+          default: ""
+          minLength: 0
+          maxLength: 200
+
+    PipelineInputs:
+      type: object
+      description: "Pipeline input properties"
+      properties:
+        app_directory:
+          type: string
+          description: "The sub-directory where the application code is located"
+          minLength: 1
+          maxLength: 100
+          default: "."
+        cnb_builder:
+          type: string
+          description: "The Cloud Native Buildpacks builder to use to build the container image"
+          minLength: 1
+          maxLength: 100
+          default: "paketobuildpacks/builder:full"
+        unit_test_command:
+          type: string
+          description: "The command to run to unit test the application code"
+          default: "echo 'No tests'"
+          minLength: 1
+          maxLength: 200
+        environment_account_ids:
+          type: string
+          pattern: '^$|^\d{12}(,\d{12})*$'
+          description: "The environment account ids for service instances using cross account environment, separated by ,"
+          default: ""
+          maxLength: 200
+      required:
+      - app_directory

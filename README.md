@@ -23,7 +23,8 @@ Quick links to the environment and service templates:
 | Name | Description | Link |
 |------|-------------|------|
 | Loadbalanced ECS Fargate Service | ECS Fargate Service with an Application Load Balancer | [Docs](/templates/service/ecs-fargate-loadbalanced/README.md) |
-| App Runner Service from Container Image | App Runner service deployed from a container image | [Docs](/templates/service/apprunner-image/README.md) |
+| App Runner Service from Image (Dockerfile) | App Runner service deployed from a container image built using a Dockerfile | [Docs](/templates/service/apprunner-image/README.md) |
+| App Runner Service from Image (Buildpacks) | App Runner service deployed from a container image built using Cloud Native Buildpacks | [Docs](/templates/service/apprunner-image-buildpack/README.md) |
 
 ## Sample Applications
 
