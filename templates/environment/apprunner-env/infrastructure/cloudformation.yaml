@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Bare environment
+Conditions:
+  Never:
+    !Equals [ "A", "B" ]
+
+Resources:
+  NonResource:
+    Type: Custom::NonResource
+    Condition: Never
+
+Outputs:
+  Dummy:
+    Value: dummy
+
+  PlaceholderImage:
+    Value: '{{ environment.inputs.placeholder_image}}'

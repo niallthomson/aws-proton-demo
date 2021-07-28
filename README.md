@@ -16,9 +16,11 @@ Quick links to the environment and service templates:
 |------|-------------|------|
 | ECS Public VPC | VPC with public access and compute, and an ECS Cluster | [Docs](/templates/environment/ecs-public-vpc/README.md) |
 | ECS Public/Private VPC | VPC with public access, private compute, and an ECS Cluster | [Docs](/templates/environment/ecs-public-private-vpc/README.md) |
+| App Runner Environment | An environment for App Runner services | [Docs](/templates/environment/apprunner-env/README.md) |
 
 ### Service Templates
 
 | Name | Description | Link |
 |------|-------------|------|
 | Loadbalanced ECS Fargate Service | ECS Fargate Service with an Application Load Balancer | [Docs](/templates/service/ecs-fargate-loadbalanced/README.md) |
+| App Runner Service from Container Image | App Runner service deployed from a container image | [Docs](/templates/service/apprunner-image/README.md) |

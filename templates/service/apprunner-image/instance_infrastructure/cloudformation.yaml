@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy a service on AWS App Runner
+Mappings:
+  TaskSize:
+    small:
+      cpu: 1024
+      memory: 2048
+    medium:
+      cpu: 1024
+      memory: 3072
+    large:
+      cpu: 2048
+      memory: 4096
+Resources:
+  ECRAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: '{{service.name}}-{{service_instance.name}}-ecr-access'
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: build.apprunner.amazonaws.com
+        Version: "2012-10-17"
+
+  ECRAccessRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:CompleteLayerUpload
+            - ecr:GetAuthorizationToken
+            - ecr:BatchGetImage
+            - ecr:GetDownloadUrlForLayer
+          Effect: Allow
+          Resource: '*'
+        Version: "2012-10-17"
+      PolicyName: '{{service.name}}-{{service_instance.name}}-ecr-access'
+      Roles:
+      - Ref: ECRAccessRole
+
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: '{{service.name}}-{{service_instance.name}}'
+      SourceConfiguration:
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt ECRAccessRole.Arn
+        AutoDeploymentsEnabled: true
+        ImageRepository:
+          {% if service_instance.inputs.image %}
+          ImageIdentifier: '{{service_instance.inputs.image}}'
+          {% else %}
+          ImageIdentifier: '{{environment.outputs.PlaceholderImage}}'
+          {% endif %}
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: '{{service_instance.inputs.port}}'
+            RuntimeEnvironmentVariables:
+            - Name: PORT
+              Value: '{{service_instance.inputs.port}}'
+      InstanceConfiguration:
+        Cpu: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, cpu]
+        Memory: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, memory]
+      HealthCheckConfiguration:
+        HealthyThreshold: 2
+        Interval: 10
+        Path: '{{service_instance.inputs.health_check_path}}'
+        Protocol: HTTP
+
+Outputs:
+  ServiceEndpoint:
+    Description: The URL to access the service
+    Value: !GetAtt 'AppRunnerService.ServiceUrl'

@@ -1,0 +1,15 @@
+schema:
+  format:
+    openapi: "3.0.0"
+  environment_input_type: "BareEnvironmentInput"
+  types:
+    BareEnvironmentInput:
+      type: object
+      description: "Input properties for my environment"
+      properties:
+        placeholder_image:
+          type: string
+          default: ""
+          description: Placeholder container image used before the application is deployed
+      required:
+      - placeholder_image
