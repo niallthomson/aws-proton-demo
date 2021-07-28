@@ -24,3 +24,9 @@ Quick links to the environment and service templates:
 |------|-------------|------|
 | Loadbalanced ECS Fargate Service | ECS Fargate Service with an Application Load Balancer | [Docs](/templates/service/ecs-fargate-loadbalanced/README.md) |
 | App Runner Service from Container Image | App Runner service deployed from a container image | [Docs](/templates/service/apprunner-image/README.md) |
+
+## Sample Applications
+
+| Name | Description | Link |
+|------|-------------|------|
+| Java | Spring Boot web application | Docs |
