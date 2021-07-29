@@ -33,7 +33,7 @@ schema:
           minLength: 0
           maxLength: 200
 
-    PipelineInputs:
+    PipelineSettings:
       type: object
       description: "Pipeline input properties"
       properties:
