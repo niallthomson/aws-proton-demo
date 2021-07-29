@@ -1,15 +1,13 @@
 schema:
   format:
     openapi: "3.0.0"
-  environment_input_type: "BareEnvironmentInput"
+  environment_input_type: "EnvironmentSettings"
   types:
-    BareEnvironmentInput:
+    EnvironmentSettings:
       type: object
       description: "Input properties for my environment"
       properties:
         placeholder_image:
           type: string
-          default: ""
-          description: Placeholder container image used before the application is deployed
-      required:
-      - placeholder_image
+          default: "ealen/echo-server:0.5.1"
+          description: Placeholder container image used before the application pipeline runs (must be Docker Hub public)

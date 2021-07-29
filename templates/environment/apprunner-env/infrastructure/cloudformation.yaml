@@ -9,9 +9,191 @@ Resources:
     Type: Custom::NonResource
     Condition: Never
 
-Outputs:
-  Dummy:
-    Value: dummy
+  ECRRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 'lambda.amazonaws.com'
+          Action: 'sts:AssumeRole'
+      Policies:
+      - PolicyName: ecr
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:CompleteLayerUpload
+            - ecr:GetAuthorizationToken
+            - ecr:InitiateLayerUpload
+            - ecr:PutImage
+            - ecr:UploadLayerPart
+            - ecr:StartImageScan
+            - ecr:DescribeImageScanFindings
+            - ecr:BatchGetImage
+            - ecr:GetDownloadUrlForLayer
+            Resource: '*'
+
+  LambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      Roles:
+      - !Ref LambdaRole
+      PolicyName: lambda
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - 'logs:CreateLogStream'
+          - 'logs:PutLogEvents'
+          Resource: !GetAtt 'LambdaLogGroup.Arn'
+
+  LambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          from pathlib import Path
+          import hashlib
+          import requests
+          import cfnresponse
+          import tempfile
+
+          client = boto3.client('ecr')
+
+          def read_in_chunks(file_object, CHUNK_SIZE):
+              while True:
+                  data = file_object.read(CHUNK_SIZE)
+                  if not data:
+                      break
+                  yield data
+
+          def uploadLayer(layerDigest, library, targetRepositoryName, token):
+              fd, filename = tempfile.mkstemp()
+
+              blobUrl = 'https://registry-1.docker.io/v2/{}/blobs/{}'.format(library, layerDigest)
+
+              headers = {'Authorization': 'Bearer {}'.format(token)}
+              results = requests.get(blobUrl, headers=headers)
+
+              with os.fdopen(fd, 'wb') as tmp:
+                  tmp.write(results.content)
+            
+              file_object = open(filename, "rb")
+              index = 0
+              offset = 0
+              headers = {}
+
+              response = client.initiate_layer_upload(
+                  repositoryName=targetRepositoryName
+              )
+
+              upload_id = response['uploadId']
+              CHUNK_SIZE = response['partSize']
+            
+              for chunk in read_in_chunks(file_object, CHUNK_SIZE):
+                  offset = index + len(chunk)
+                  response = client.upload_layer_part(
+                      repositoryName=targetRepositoryName,
+                      uploadId=upload_id,
+                      partFirstByte=index,
+                      partLastByte=offset-1,
+                      layerPartBlob=chunk
+                  )
+
+                  index = offset 
+
+              response = client.complete_layer_upload(
+                  repositoryName=targetRepositoryName,
+                  uploadId=upload_id,
+                  layerDigests=[
+                      layerDigest,
+                  ]
+              )
+
+          def copy(sourceImage, targetRepositoryName, targetTag):
+              library, tag = sourceImage.split(':')
+
+              response = requests.get('https://auth.docker.io/token?service=registry.docker.io&scope=repository:{}:pull'.format(library))
+
+              token = response.json()['token']
+
+              headers = {'Authorization': 'Bearer {}'.format(token), 'Accept': 'application/vnd.docker.distribution.manifest.v2+json'}
+
+              response = requests.get('https://registry-1.docker.io/v2/{}/manifests/{}'.format(library, tag), headers=headers)
+
+              json_response = response.json()
+              manifest = response.content.decode("utf-8") 
+
+              layers = list(map(lambda layer : layer['digest'], json_response['layers']))
+
+              layers.append(json_response['config']['digest'])
+
+              response = client.batch_check_layer_availability(
+                  repositoryName=targetRepositoryName,
+                  layerDigests=layers
+              )
+
+              for layer in response['layers']:
+                  if layer['layerAvailability'] != 'AVAILABLE':
+                      print('Uploading missing layer {}'.format(layer['layerDigest']))
+                      uploadLayer(layer['layerDigest'], library, targetRepositoryName, token)
+                  else:
+                      print('Layer already exists {}'.format(layer['layerDigest']))
+
+              response = client.put_image(
+                  repositoryName=targetRepositoryName,
+                  imageManifest=manifest,
+                  imageTag=targetTag,
+              )
+
+          def handler(event, context):
+              sourceImage = event['ResourceProperties']['SourceImage']
+              repository = event['ResourceProperties']['Repository']
+              tag = event['ResourceProperties']['Tag']
+
+              try:
+                  if event['RequestType'] != 'Delete':
+                      copy(sourceImage, repository, tag)
+
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "PlaceholderImage")
+              except Exception as e:
+                  print(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {}, "PlaceholderImage")
+
+      Handler: 'index.handler'
+      MemorySize: 128
+      Role: !GetAtt 'LambdaRole.Arn'
+      Runtime: 'python3.7'
+      Timeout: 300
+
+  LambdaLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${LambdaFunction}'
+      RetentionInDays: 7
 
   PlaceholderImage:
-    Value: '{{ environment.inputs.placeholder_image}}'
+    Type: 'Custom::PlaceholderImage'
+    DependsOn:
+    - LambdaLogGroup
+    - LambdaPolicy
+    Version: '1.0'
+    Properties:
+      SourceImage: '{{ environment.inputs.placeholder_image}}'
+      Repository: !Ref ECRRepo
+      Tag: latest
+      ServiceToken: !GetAtt 'LambdaFunction.Arn'
+
+Outputs:
+  PlaceholderImage:
+    Value: !Sub '${ECRRepo.RepositoryUri}:latest'
