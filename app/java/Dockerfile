@@ -65,5 +65,4 @@ RUN ./mvnw -DskipTests --batch-mode --no-transfer-progress package
 
 EXPOSE 8080
 
-# hadolint ignore=DL3025
 CMD exec java $JAVA_OPTS -jar /app/target/app.jar
