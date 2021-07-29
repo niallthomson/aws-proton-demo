@@ -1,11 +1,11 @@
 schema:
   format:
     openapi: "3.0.0"
-  service_input_type: "AppRunnerInput"
-  pipeline_input_type: "PipelineInputs"
+  service_input_type: "ServiceSettings"
+  pipeline_input_type: "PipelineSettings"
 
   types:
-    AppRunnerInput:
+    ServiceSettings:
       type: object
       description: "Input properties for an App Runner service"
       properties:
