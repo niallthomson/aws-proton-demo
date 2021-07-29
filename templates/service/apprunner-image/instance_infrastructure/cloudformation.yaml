@@ -49,7 +49,7 @@ Resources:
       SourceConfiguration:
         AuthenticationConfiguration:
           AccessRoleArn: !GetAtt ECRAccessRole.Arn
-        AutoDeploymentsEnabled: true
+        AutoDeploymentsEnabled: false
         ImageRepository:
           {% if service_instance.inputs.image %}
           ImageIdentifier: '{{service_instance.inputs.image}}'
