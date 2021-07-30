@@ -32,6 +32,10 @@ schema:
           default: ""
           minLength: 0
           maxLength: 200
+        approval:
+          type: boolean
+          description: "Does this environment require manual approval"
+          default: false
 
     PipelineSettings:
       type: object

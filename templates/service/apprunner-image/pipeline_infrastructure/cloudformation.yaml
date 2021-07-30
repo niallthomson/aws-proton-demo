@@ -559,13 +559,23 @@ Resources:
                 ProjectName:
                   Ref: ScanProject
                 EnvironmentVariables: '[{"name":"IMAGE_ID","value":"#{BuildProject.IMAGE_ID}","type":"PLAINTEXT"},{"name":"IMAGE_TAG","value":"#{BuildProject.IMAGE_TAG}","type":"PLAINTEXT"}]'
-
               InputArtifacts:
                 - Name: Artifact_Source_Checkout
               Name: Scan
               RoleArn: !GetAtt PipelineBuildCodePipelineActionRole.Arn
               RunOrder: 2
           Name: Build {%- for service_instance in service_instances %}
+        {% if service_instances[loop.index0].outputs.Approval %}
+        - Actions:
+            - ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: "1"
+              Name: Approval
+              RunOrder: 1
+          Name: Approve-{{service_instance.name}}
+        {% endif %}
         - Actions:
             - ActionTypeId:
                 Category: Build
