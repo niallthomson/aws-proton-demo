@@ -81,7 +81,7 @@ aws proton update-service-template-version \
 |------|-------------|------|---------|:-----:|
 | `port` | The port the application serves traffic on | `number` | `8080` | yes |
 | `health_check_path` | The path used to perform an HTTP health check | `string` | `/` | yes |
-| `task_size` | The size of the task you want to run | `string` | `x-small` | yes |
+| `instance_size` | The size of the instances you want to run | `string` | `x-small` | yes |
 | `image` | The name/url of the container image | `string` |  | no |
 
 ### Pipeline Inputs
