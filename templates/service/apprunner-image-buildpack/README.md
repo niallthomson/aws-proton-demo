@@ -44,7 +44,7 @@ rm svc-template.tar.gz
 
 aws proton create-service-template-version \
   --template-name "apprunner-image-buildpack" \
-  --description "Version 1" \
+  --description "Initial version" \
   --source s3="{bucket=proton-cli-templates-${ACCOUNT_ID},key=svc-template.tar.gz}" \
   --compatible-environment-templates '[{"templateName":"apprunner-env","majorVersion":"1"}]'
 ```

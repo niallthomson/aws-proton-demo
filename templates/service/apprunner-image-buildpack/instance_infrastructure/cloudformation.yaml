@@ -63,8 +63,8 @@ Resources:
             - Name: PORT
               Value: '{{service_instance.inputs.port}}'
       InstanceConfiguration:
-        Cpu: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, cpu]
-        Memory: !FindInMap [TaskSize, {{service_instance.inputs.task_size}}, memory]
+        Cpu: !FindInMap [TaskSize, {{service_instance.inputs.instance_size}}, cpu]
+        Memory: !FindInMap [TaskSize, {{service_instance.inputs.instance_size}}, memory]
       HealthCheckConfiguration:
         HealthyThreshold: 2
         Interval: 10

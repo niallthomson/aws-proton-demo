@@ -565,8 +565,8 @@ Resources:
               RoleArn: !GetAtt PipelineBuildCodePipelineActionRole.Arn
               RunOrder: 2
           Name: Build {%- for service_instance in service_instances %}
-        {% if service_instances[loop.index0].outputs.Approval %}
         - Actions:
+            {% if service_instances[loop.index0].outputs.Approval %}
             - ActionTypeId:
                 Category: Approval
                 Owner: AWS
@@ -575,8 +575,7 @@ Resources:
               Name: Approval
               RunOrder: 1
           Name: Approve-{{service_instance.name}}
-        {% endif %}
-        - Actions:
+          {% endif %}
             - ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -589,7 +588,7 @@ Resources:
                 - Name: BuildOutput
               Name: Deploy
               RoleArn: !GetAtt PipelineDeployCodePipelineActionRole.Arn
-              RunOrder: 1
+              RunOrder: 2
           Name: 'Deploy-{{service_instance.name}}'
 {%- endfor %}
       ArtifactStore:

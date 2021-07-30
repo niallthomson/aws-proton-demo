@@ -21,9 +21,9 @@ schema:
           default: "/"
           minLength: 1
           maxLength: 200
-        task_size:
+        instance_size:
           type: string
-          description: "The size of the task you want to run"
+          description: "The size of the instances you want to run"
           enum: ["small", "medium", "large"]
           default: "small"
         image:
@@ -34,7 +34,7 @@ schema:
           maxLength: 200
         approval:
           type: boolean
-          description: "Does this environment require manual approval"
+          description: "Does this instance require manual approval"
           default: false
 
     PipelineSettings:
